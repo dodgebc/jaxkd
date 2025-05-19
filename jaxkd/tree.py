@@ -30,7 +30,7 @@ def build_tree(points, optimize=True):
         optimize: If True (default), split along dimension with the largest range. This typically leads to faster queries. If False, cycle through dimensions in order.
         
     Returns:
-        tree (namedtuple)
+        tree (tree_type)
             - points: (N, d) Same points as input, not copied.
             - indices: (N,) Indices of points in binary tree order.
             - split_dims: (N,) Splitting dimension of each tree node, marked -1 for leaves. If `optimize=False` this is set to None.
@@ -49,7 +49,7 @@ def query_neighbors(tree, query, k):
     See also https://github.com/ingowald/cudaKDTree.
 
     Args:
-        tree (namedtuple): Output of `build_tree`.
+        tree (tree_type): Output of `build_tree`.
             - points: (N, d) Points to search.
             - indices: (N,) Indices of points in binary tree order.
             - split_dims: (N,) Splitting dimension of each tree node, not used for leaves. If None, assume cycle through dimensions in order.
@@ -77,7 +77,7 @@ def count_neighbors(tree, query, radius):
     See also https://github.com/ingowald/cudaKDTree.
 
     Args:
-        tree (namedtuple): Output of `build_tree`.
+        tree (tree_type): Output of `build_tree`.
             - points: (N, d) Points to search.
             - indices: (N,) Indices of points in binary tree order.
             - split_dims: (N,) Splitting dimension of each tree node, not used for leaves. If None, assume cycle through dimensions in order.
@@ -89,36 +89,24 @@ def count_neighbors(tree, query, radius):
     """
     if len(tree.points) != len(tree.indices) or (tree.split_dims is not None and len(tree.points) != len(tree.split_dims)):
         raise ValueError(f'Invalid tree, got len(points)={len(tree.points)}, len(indices)={len(tree.indices)}, len(split_dims)={len(tree.split_dims)}.')
-    squeeze = False
     if radius.ndim > 2 or query.ndim > 2 or (radius.ndim == 2 and query.ndim == 1) or ((radius.ndim == 2 and query.ndim == 2) and radius.shape[0] != query.shape[0]):
         raise ValueError(f'Invalid shape for query {query.shape} or radius {radius.shape}.')
-    if radius.ndim == 0:
-        squeeze = True
-        radius = jnp.array([radius])
-    if query.ndim == 1:
-        counts = _single_count_neighbors(tree, query, radius)
-    elif query.ndim == 2:
-        if radius.ndim == 1:
-            counts = jax.vmap(lambda q: _single_count_neighbors(tree, q, radius))(query)
-        elif radius.ndim == 2:
-            counts = jax.vmap(lambda q, r: _single_count_neighbors(tree, q, r))(query, radius)
-    else:
-        raise ValueError(f'Query must have shape (Q, d) or (d,). Got shape {query.shape}.')
-    if squeeze:
-        return counts.squeeze(-1)
+    
+    query_shaped = jnp.atleast_2d(query)
+    radius_shaped = jnp.atleast_2d(radius)
+    radius_shaped = jnp.broadcast_to(radius_shaped, (query_shaped.shape[0], radius_shaped.shape[-1]))
+    counts = jax.vmap(lambda q, r: _single_count_neighbors(tree, q, r))(query_shaped, radius_shaped)
+
+    if query.ndim == 1 and radius.ndim == 0: return counts.squeeze((0, 1))
+    if query.ndim == 1 and radius.ndim == 1: return counts.squeeze(0)
+    if query.ndim == 2 and radius.ndim == 0: return counts.squeeze(1)
     return counts
-
-
-
-
 
 
 
 def _single_query_neighbors(tree, query, k):
     """ Single neighbor query implementation, use `query_neighbors` wrapper instead unless non-JIT version is needed. """
-    neighbors = -1 * jnp.ones(k, dtype=int)
-    square_distances = jnp.inf * jnp.ones(k)
-    points, indices, _ = tree
+    points, indices = tree.points, tree.indices
 
     def update_func(node, state, _):
         neighbors, square_distances = state
@@ -132,6 +120,8 @@ def _single_query_neighbors(tree, query, k):
         )
         return (neighbors, square_distances), jnp.max(square_distances)
     
+    neighbors = -1 * jnp.ones(k, dtype=int)
+    square_distances = jnp.inf * jnp.ones(k)
     neighbors, _ = _traverse_tree(tree, query, update_func, (neighbors, square_distances), jnp.inf)
     distances = jnp.linalg.norm(points[neighbors] - query, axis=-1) # recompute distances to enable VJP
     order = jnp.argsort(distances, axis=-1)
@@ -140,14 +130,14 @@ def _single_query_neighbors(tree, query, k):
 
 def _single_count_neighbors(tree, query, radius):
     """ Single neighbor count implementation, use `count_neighbors` wrapper instead unless non-JIT version is needed. """
-    count = jnp.zeros(len(radius), dtype=int)
-    points, indices, _ = tree
+    points, indices = tree.points, tree.indices
 
     def update_func(node, count, square_radius):
         square_distance = jnp.sum((points[indices[node]] - query)**2, axis=-1) # square distance to node point
         count = lax.select(square_distance < radius**2, count + 1, count) # if the node is within radius, increment count
         return count, square_radius
     
+    count = jnp.zeros(len(radius), dtype=int)
     count = _traverse_tree(tree, query, update_func, count, jnp.max(radius**2))
     return count
 
@@ -222,7 +212,7 @@ def _traverse_tree(tree, query, update_func, initial_state, initial_square_radiu
     At each node, we run:
         `state, square_radius = update_func(node, state, square_radius)`
     """
-    points, indices, split_dims = tree
+    points, indices, split_dims = tree.points, tree.indices, tree.split_dims
     n_points = len(points)
 
     def step(carry):

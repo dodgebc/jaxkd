@@ -19,12 +19,10 @@ def test_shapes():
     assert tree.indices.shape == points.shape[:-1]
     assert tree.split_dims == None
 
-    # Single query
+    # Queries
     neighbors, distances = jk.query_neighbors(tree, queries[0], 10)
     assert neighbors.shape == (10,)
     assert distances.shape == (10,)
-
-    # Batch query
     neighbors, distances = jk.query_neighbors(tree, queries, 10)
     assert neighbors.shape == (queries.shape[0], 10)
     assert distances.shape == (queries.shape[0], 10)
@@ -35,6 +33,21 @@ def test_shapes():
     assert jk.count_neighbors(tree, queries, radius[0,0]).shape == (queries.shape[0],)
     assert jk.count_neighbors(tree, queries, radius[0]).shape == (queries.shape[0], radius.shape[1])
     assert jk.count_neighbors(tree, queries, radius).shape == radius.shape
+
+    # Pairwise queries
+    neighbors, distances = jk.extras.query_neighbors_pairwise(points, queries[0], 10)
+    assert neighbors.shape == (10,)
+    assert distances.shape == (10,)
+    neighbors, distances = jk.extras.query_neighbors_pairwise(points, queries, 10)
+    assert neighbors.shape == (queries.shape[0], 10)
+    assert distances.shape == (queries.shape[0], 10)
+
+    # Pairwise count
+    assert jk.extras.count_neighbors_pairwise(points, queries[0], radius[0,0]).shape == ()
+    assert jk.extras.count_neighbors_pairwise(points, queries[0], radius[0]).shape == (radius.shape[1],)
+    assert jk.extras.count_neighbors_pairwise(points, queries, radius[0,0]).shape == (queries.shape[0],)
+    assert jk.extras.count_neighbors_pairwise(points, queries, radius[0]).shape == (queries.shape[0], radius.shape[1])
+    assert jk.extras.count_neighbors_pairwise(points, queries, radius).shape == radius.shape
 
 
 def test_small_case():
@@ -109,3 +122,26 @@ def test_grad():
     
     grad = jax.grad(loss_func)(jnp.arange(30).reshape(10,3).astype(jnp.float32))
     assert jnp.isclose(grad[0,0], -78., atol=1e-5)
+
+def test_query_neighbors_pairwise():
+    kp, kq = jax.random.split(jax.random.key(83))
+    points = jax.random.normal(kp, shape=(1_000, 3))
+    queries = jax.random.normal(kq, shape=(1_000, 3))
+    tree = jk.build_tree(points)
+
+    n1, d1 = jk.extras.query_neighbors_pairwise(points, queries, 25)
+    n2, d2 = jk.query_neighbors(tree, queries, 25)
+
+    assert jnp.all(n1 == n2)
+    assert jnp.all(d1 == d2)
+
+def test_count_neighbors_pairwise():
+    kp, kq = jax.random.split(jax.random.key(83))
+    points = jax.random.normal(kp, shape=(1_000, 3))
+    queries = jax.random.normal(kq, shape=(1_000, 3))
+    tree = jk.build_tree(points)
+
+    n1 = jk.extras.count_neighbors_pairwise(points, queries, 0.5)
+    n2 = jk.count_neighbors(tree, queries, 0.5)
+
+    assert jnp.all(n1 == n2)
