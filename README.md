@@ -3,7 +3,9 @@ Find $k$-nearest neighbors using a $k$-d tree in JAX!
 
 This is an implementation of two GPU-friendly tree algorithms [[1](https://arxiv.org/abs/2211.00120), [2](https://arxiv.org/abs/2210.12859)] using only XLA primitives. It is convenient and lightweight, but the CUDA-based [cudaKDTree](https://github.com/ingowald/cudaKDTree) may be a better choice depending on the application.
 
-The core `build_tree`, `query_neighbors`, and `count_neighbors` operations are compatible with JIT and automatic differentiation. They are reasonably fast when vectorized on GPU, but will be much slower on CPU than `scipy.spatial.KDTree`. For small problems where a pairwise distance matrix fits in memory, check whether brute force is faster (see `extras.py`). The main advantage of `jaxkd` is the ability to scale up to larger problems without the complexity of integrating non-JAX libraries, especially when the neighbor search should not be the primary computational load.
+The core `build_tree`, `query_neighbors`, and `count_neighbors` operations are compatible with JIT and automatic differentiation. They are reasonably fast when vectorized on GPU, but will be much slower on CPU than `scipy.spatial.KDTree`. For small problems where a pairwise distance matrix fits in memory, check whether brute force is faster (see `jaxkd.extras`).
+
+The main advantage of `jaxkd` is the ability to scale up to larger problems without the complexity of integrating non-JAX libraries, especially when the neighbor search should not be the primary computational load.
 
 ## Usage
 

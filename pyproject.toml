@@ -16,3 +16,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.version]
 source = "vcs"
+
+[project.urls]
+Homepage = "https://github.com/dodgebc/jaxkd"
