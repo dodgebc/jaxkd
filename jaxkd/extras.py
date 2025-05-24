@@ -92,11 +92,11 @@ def k_means(
 
     Returns:
         means: (k, d) Final cluster means.
-        clusters: (N,) Cluster assignment for each point. If unconverged, may not be closest mean.
+        labels: (N,) Cluster assignment for each point. If unconverged, may not be closest mean.
     """
     initial_means = k_means_plus_plus_init(key, points, k=k, pairwise=pairwise)
-    means, clusters = k_means_optimize(points, initial_means, iter=iter, pairwise=pairwise)
-    return means, clusters
+    means, labels = k_means_optimize(points, initial_means, iter=iter, pairwise=pairwise)
+    return means, labels
 
 
 @Partial(jax.jit, static_argnames=("iter", "pairwise"))
@@ -114,7 +114,7 @@ def k_means_optimize(
 
     Returns:
         means: (k, d) Final cluster means.
-        clusters: (N,) Cluster assignment for each point. If unconverged, may not be closest mean.
+        labels: (N,) Cluster assignment for each point. If unconverged, may not be closest mean.
     """
     n_points, _ = points.shape
     k, _ = initial_means.shape
@@ -122,19 +122,19 @@ def k_means_optimize(
     def step(carry, _):
         means, _ = carry
         if pairwise:
-            clusters = query_neighbors_pairwise(means, points, k=1)[0].squeeze(-1)
+            labels = query_neighbors_pairwise(means, points, k=1)[0].squeeze(-1)
         else:
             tree = build_tree(means)
-            clusters = query_neighbors(tree, points, k=1)[0].squeeze(-1)
-        total = jax.ops.segment_sum(points, clusters, k)
-        count = jax.ops.segment_sum(jnp.ones_like(points), clusters, k)
+            labels = query_neighbors(tree, points, k=1)[0].squeeze(-1)
+        total = jax.ops.segment_sum(points, labels, k)
+        count = jax.ops.segment_sum(jnp.ones_like(points), labels, k)
         means = total / count
-        return (means, clusters), None
+        return (means, labels), None
 
-    (means, clusters), _ = lax.scan(
+    (means, labels), _ = lax.scan(
         step, (initial_means, jnp.zeros(n_points, dtype=int)), length=iter
     )
-    return means, clusters
+    return means, labels
 
 
 @Partial(jax.jit, static_argnames=("k", "pairwise"))
