@@ -32,7 +32,7 @@ for i in range(args.trials):
 
     start = time.time()
     queries = points[: args.queries] if args.queries > 0 else points
-    
+
     if args.batches == 1:
         neighbors, distances = jk.query_neighbors(tree, queries, k=args.neighbors)
     else:

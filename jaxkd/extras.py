@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Tuple
 import jax
 import jax.numpy as jnp
 import jax.random as jr
@@ -17,8 +17,10 @@ __all__ = [
 KeyArray = Any
 
 
-@Partial(jax.jit, static_argnums=(2,))
-def query_neighbors_pairwise(points, query, k):
+@Partial(jax.jit, static_argnames=("k",))
+def query_neighbors_pairwise(
+    points: jax.Array, query: jax.Array, *, k: int
+) -> Tuple[jax.Array, jax.Array]:
     """
     Find the k nearest neighbors by forming a pairwise distance matrix.
     This will not scale for large problems, but may be faster for small problems.
@@ -33,15 +35,19 @@ def query_neighbors_pairwise(points, query, k):
         distances: (k,) or (Q, k) Distances to the k nearest neighbors of query point(s).
     """
     query_shaped = jnp.atleast_2d(query)
+
     pairwise_distances = jnp.linalg.norm(points - query_shaped[:, None], axis=-1)
     distances, indices = lax.top_k(-1 * pairwise_distances, k)
+
     if query.ndim == 1:
         return indices.squeeze(0), -1 * distances.squeeze(0)
     return indices, -1 * distances
 
 
 @jax.jit
-def count_neighbors_pairwise(points: jax.Array, query: jax.Array, *, r: float | jax.Array):
+def count_neighbors_pairwise(
+    points: jax.Array, query: jax.Array, *, r: float | jax.Array
+) -> jax.Array:
     """
     Count the neighbors within a given radius in by forming a pairwise distance matrix.
     This will not scale for large problems, but may be faster for small problems.
@@ -58,8 +64,9 @@ def count_neighbors_pairwise(points: jax.Array, query: jax.Array, *, r: float | 
     r_shaped = jnp.atleast_2d(r)
     r_shaped = jnp.broadcast_to(r_shaped, (query_shaped.shape[0], r_shaped.shape[-1]))
     pairwise_distances = jnp.linalg.norm(points - query_shaped[:, None], axis=-1)
-    # (Q, N) < (Q, R) -> (Q, N, R) -> (Q, R)
     counts = jnp.sum(pairwise_distances[:, :, None] <= r_shaped[:, None], axis=1)
+    # (Q, N) < (Q, R) -> (Q, N, R) -> (Q, R)
+
     if query.ndim == 1 and r.ndim == 0:
         return counts.squeeze((0, 1))
     if query.ndim == 1 and r.ndim == 1:
@@ -85,7 +92,7 @@ def k_means(
 
     Returns:
         means: (k, d) Final cluster means.
-        clusters: (N,) Cluster assignment for each point.
+        clusters: (N,) Cluster assignment for each point. If unconverged, may not be closest mean.
     """
     initial_means = k_means_plus_plus_init(key, points, k=k, pairwise=pairwise)
     means, clusters = k_means_optimize(points, initial_means, iter=iter, pairwise=pairwise)
@@ -107,7 +114,7 @@ def k_means_optimize(
 
     Returns:
         means: (k, d) Final cluster means.
-        clusters: (N,) Cluster assignment for each point.
+        clusters: (N,) Cluster assignment for each point. If unconverged, may not be closest mean.
     """
     n_points, _ = points.shape
     k, _ = initial_means.shape
@@ -135,7 +142,7 @@ def k_means_plus_plus_init(
     key: KeyArray, points: jax.Array, *, k: int, pairwise: bool = True
 ) -> jax.Array:
     """
-    Initialize means for k-means clustering using the k-means plus plus algorithm.
+    Initialize means for k-means clustering using the k-means++ algorithm.
 
     Args:
         key: A random key.

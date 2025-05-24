@@ -49,12 +49,8 @@ def test_shapes():
 
     # Pairwise count
     assert count_neighbors_pairwise(points, queries[0], r=radius[0, 0]).shape == ()
-    assert count_neighbors_pairwise(points, queries[0], r=radius[0]).shape == (
-        radius.shape[1],
-    )
-    assert count_neighbors_pairwise(points, queries, r=radius[0, 0]).shape == (
-        queries.shape[0],
-    )
+    assert count_neighbors_pairwise(points, queries[0], r=radius[0]).shape == (radius.shape[1],)
+    assert count_neighbors_pairwise(points, queries, r=radius[0, 0]).shape == (queries.shape[0],)
     assert count_neighbors_pairwise(points, queries, r=radius[0]).shape == (
         queries.shape[0],
         radius.shape[1],

@@ -27,3 +27,4 @@ Source = "https://github.com/dodgebc/jaxkd"
 
 [tool.ruff]
 line-length = 100
+exclude = ["*.ipynb"]
