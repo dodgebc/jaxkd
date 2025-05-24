@@ -3,7 +3,24 @@ name: Install and run tests
 on: [push, pull_request] 
 
 jobs:
-  pytest: 
+  ruff:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Ruff
+        run: |
+          python -m pip install --upgrade pip
+          pip install . 
+
+      - name: Run Ruff
+        run: ruff check . --output-format=github
+  
+  pytest:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -17,13 +34,13 @@ jobs:
 
       - name: Install package and dependencies
         run: |
-         python -m pip install --upgrade pip
-         pip install . 
+          python -m pip install --upgrade pip
+          pip install . 
 
       - name: Run pytest
         run: |
-         pip install pytest
-         python -m pytest tests/ --junitxml=junit/test-results-${{ matrix.python-version }}.xml
+          pip install pytest
+          python -m pytest tests/ --junitxml=junit/test-results-${{ matrix.python-version }}.xml
 
       - name: Upload pytest test results
         uses: actions/upload-artifact@v4
