@@ -6,14 +6,19 @@ from jax import lax
 from jax.tree_util import Partial
 from collections import namedtuple
 
-# This module implements three top-level functions:
+# This module implements three main functions:
 # - `build_tree`: Build a k-d tree from points.
 # - `query_neighbors`: Find the k-nearest neighbors in a k-d tree.
 # - `count_neighbors`: Count the neighbors within a given radius in a k-d tree.
 
 # These functions handle batching, are automatically JIT-compiled, and do a few sanity checks.
-# If you need to run the non-JIT version, use `_build_tree`, `_single_query_neighbors`, and `_single_count_neighbors` instead.
-# Both querying functions are implemented using a call to `_traverse_tree` with a custom `update_func` that tracks state.
+# If you need to run the non-JIT version, use `_build_tree`, `_single_query_neighbors`,
+# and `_single_count_neighbors` instead. Both neighbor functions are implemented using a call
+# to `_traverse_tree` with a custom `update_func` that tracks state.
+
+# There is also `query_neighbors_pairwise` and `count_neighbors_pairwise`, which are the usual
+# brute force approach using a pairwise distance matrix with a similar interface. They will run
+# faster for small problems, but will run slower or simply not fit in memory for large problems.
 
 tree_type = namedtuple('tree', ['points', 'indices', 'split_dims'])
 
@@ -39,11 +44,10 @@ def build_tree(points, optimize=True):
     if points.shape[-1] >= 128: raise ValueError(f'Points must have at most 127 dimension. Got {points.shape[-1]} dimensions.')
     return _build_tree(points, optimize=optimize)
 
-
 @Partial(jax.jit, static_argnums=(2,))
 def query_neighbors(tree, query, k):
     """
-    Find the k-nearest neighbors in a k-d tree.
+    Find the k nearest neighbors in a k-d tree.
     
     Traversal algorithm from Wald (2022), https://arxiv.org/abs/2210.12859.
     See also https://github.com/ingowald/cudaKDTree.
@@ -102,7 +106,55 @@ def count_neighbors(tree, query, radius):
     if query.ndim == 2 and radius.ndim == 0: return counts.squeeze(1)
     return counts
 
+@Partial(jax.jit, static_argnums=(2,))
+def query_neighbors_pairwise(points, query, k):
+    """
+    Find the k nearest neighbors by forming a pairwise distance matrix.
+    This will not scale for large problems, but may be faster for small problems.
 
+    Args:
+        points: (N, d) Points to search.
+        query: (d,) or (Q, d) Query point(s).
+        k (int): Number of neighbors to return.
+
+    Returns:
+        neighbors: (k,) or (Q, k) Indices of the k nearest neighbors of query point(s).
+        distances: (k,) or (Q, k) Distances to the k nearest neighbors of query point(s).
+    """
+    query_shaped = jnp.atleast_2d(query)
+    pairwise_distances = jnp.linalg.norm(points - query_shaped[:,None], axis=-1)
+    distances, indices = lax.top_k(-1 * pairwise_distances, k)
+    if query.ndim == 1:
+        return indices.squeeze(0), -1 * distances.squeeze(0)
+    return indices, -1 * distances
+
+@jax.jit
+def count_neighbors_pairwise(points, query, radius):
+    """
+    Count the neighbors within a given radius in by forming a pairwise distance matrix.
+    This will not scale for large problems, but may be faster for small problems.
+
+    Args:
+        points: (N, d) Points to search.
+        query: (d,) or (Q, d) Query point(s).
+        radius: (float) (R,) or (Q, R) Radius or radii to count neighbors within, multiple radii are done in a single tree traversal.
+
+    Returns:
+        counts: (1,) (Q,) (R,) or (Q, R) Number of neighbors within the given radius(i) of query point(s).
+    """
+    query_shaped = jnp.atleast_2d(query)
+    radius_shaped = jnp.atleast_2d(radius)
+    radius_shaped = jnp.broadcast_to(radius_shaped, (query_shaped.shape[0], radius_shaped.shape[-1]))
+    pairwise_distances = jnp.linalg.norm(points - query_shaped[:,None], axis=-1)
+    counts = jnp.sum(pairwise_distances[:,:,None] <= radius_shaped[:,None], axis=1) # (Q, N) < (Q, R) -> (Q, N, R) -> (Q, R)
+    if query.ndim == 1 and radius.ndim == 0: return counts.squeeze((0, 1))
+    if query.ndim == 1 and radius.ndim == 1: return counts.squeeze(0)
+    if query.ndim == 2 and radius.ndim == 0: return counts.squeeze(1)
+    return counts
+
+
+
+# ====== IMPLEMENTATIONS ======
 
 def _single_query_neighbors(tree, query, k):
     """ Single neighbor query implementation, use `query_neighbors` wrapper instead unless non-JIT version is needed. """
@@ -124,8 +176,8 @@ def _single_query_neighbors(tree, query, k):
     square_distances = jnp.inf * jnp.ones(k)
     neighbors, _ = _traverse_tree(tree, query, update_func, (neighbors, square_distances), jnp.inf)
     distances = jnp.linalg.norm(points[neighbors] - query, axis=-1) # recompute distances to enable VJP
-    order = jnp.argsort(distances, axis=-1)
-    return neighbors[order], distances[order]
+    distances, neighbors = lax.sort((distances, neighbors), dimension=0, num_keys=2) # sort primarily by distance, and secondarily by index for well-defined order
+    return neighbors, distances
 
 
 def _single_count_neighbors(tree, query, radius):

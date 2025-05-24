@@ -2,8 +2,6 @@ import jax
 import jax.numpy as jnp
 import jaxkd as jk
 
-# Pairwise tests in test_tree.py
-
 def test_k_means():
     kp, _ = jax.random.split(jax.random.key(83))
     points = jax.random.normal(kp, shape=(100, 2))
