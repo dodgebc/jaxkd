@@ -7,8 +7,8 @@ def test_k_means_optimize() -> None:
     kp, _ = jr.split(jr.key(83))
     points = jr.normal(kp, shape=(100, 2))
     means = points[:3]
-    means, clusters = jk.extras.k_means_optimize(points, means, iter=100)
-    means_tree, clusters_tree = jk.extras.k_means_optimize(points, means, iter=100, pairwise=False)
+    means, clusters = jk.extras.k_means_optimize(points, means, steps=100)
+    means_tree, clusters_tree = jk.extras.k_means_optimize(points, means, steps=100, pairwise=False)
 
     assert jnp.allclose(
         means,
@@ -28,6 +28,6 @@ def test_k_means_optimize() -> None:
 def test_k_means() -> None:
     kp, kc = jr.split(jr.key(83))
     points = jr.normal(kp, shape=(100, 2))
-    _, clusters = jk.extras.k_means(kc, points, k=100, iter=50)
+    _, clusters = jk.extras.k_means(kc, points, k=100, steps=50)
 
     assert jnp.all(clusters[:10] == jnp.array([37, 14, 68, 93, 42, 3, 4, 38, 26, 77]))

@@ -76,9 +76,9 @@ def count_neighbors_pairwise(
     return counts
 
 
-@Partial(jax.jit, static_argnames=("k", "iter", "pairwise"))
+@Partial(jax.jit, static_argnames=("k", "steps", "pairwise"))
 def k_means(
-    key: KeyArray, points: jax.Array, *, k: int, iter: int, pairwise: bool = True
+    key: KeyArray, points: jax.Array, *, k: int, steps: int, pairwise: bool = True
 ) -> jax.Array:
     """
     Cluster with k-means, using k-means++ initialization.
@@ -87,7 +87,7 @@ def k_means(
         key: A random key.
         points: (N, d) Points to cluster.
         k: The number of clusters to produce.
-        iter: The number of iterations to run.
+        steps: The number of optimization steps to run.
         pairwise: If True, use pairwise distance rather than tree search. Recommended for small k.
 
     Returns:
@@ -95,13 +95,13 @@ def k_means(
         labels: (N,) Cluster assignment for each point. If unconverged, may not be closest mean.
     """
     initial_means = k_means_plus_plus_init(key, points, k=k, pairwise=pairwise)
-    means, labels = k_means_optimize(points, initial_means, iter=iter, pairwise=pairwise)
+    means, labels = k_means_optimize(points, initial_means, steps=steps, pairwise=pairwise)
     return means, labels
 
 
-@Partial(jax.jit, static_argnames=("iter", "pairwise"))
+@Partial(jax.jit, static_argnames=("steps", "pairwise"))
 def k_means_optimize(
-    points: jax.Array, initial_means: jax.Array, *, iter: int, pairwise: bool = True
+    points: jax.Array, initial_means: jax.Array, *, steps: int, pairwise: bool = True
 ) -> tuple[jax.Array, jax.Array]:
     """
     Optimize k-means clusters.
@@ -109,7 +109,7 @@ def k_means_optimize(
     Args:
         points: (N, d) Points to cluster.
         initial_means: (k, d) Initial cluster means.
-        iter: Number of iterations to run.
+        steps: Number of optimization steps to run.
         pairwise: If True, use pairwise distance rather than tree search. Recommended for small k.
 
     Returns:
@@ -132,7 +132,7 @@ def k_means_optimize(
         return (means, labels), None
 
     (means, labels), _ = lax.scan(
-        step, (initial_means, jnp.zeros(n_points, dtype=int)), length=iter
+        step, (initial_means, jnp.zeros(n_points, dtype=int)), length=steps
     )
     return means, labels
 
