@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 
 import jaxkd as jk
-from jaxkd import count_neighbors_pairwise, query_neighbors_pairwise
+from jaxkd.extras import count_neighbors_pairwise, query_neighbors_pairwise
 
 
 def test_shapes():
