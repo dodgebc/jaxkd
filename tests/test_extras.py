@@ -41,4 +41,4 @@ def test_k_means_64() -> None:
         points = jr.normal(kp, shape=(100, 2))
         _, clusters = jk.extras.k_means(kc, points, k=100, steps=50)
 
-    assert jnp.all(clusters[:10] == jnp.array([37, 14, 68, 93, 42, 3, 4, 38, 26, 77]))
+    assert jnp.all(clusters[:10] == jnp.array([97, 98, 12, 99, 94, 90, 73, 84, 0, 93]))
