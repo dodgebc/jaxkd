@@ -1,7 +1,8 @@
 import jax
 import jax.numpy as jnp
+
 import jaxkd as jk
-from jaxkd.extras import query_neighbors_pairwise, count_neighbors_pairwise
+from jaxkd import count_neighbors_pairwise, query_neighbors_pairwise
 
 
 def test_shapes():
@@ -121,13 +122,14 @@ def test_grad():
         distances = jnp.linalg.norm(points[:, None] - points[neighbors][:, 1:], axis=-1)
         return jnp.sum(distances**2)
 
-    grad = jax.grad(loss_func)(jnp.arange(30).reshape(10, 3).astype(jnp.float32))
+    x = jnp.reshape(jnp.arange(30, dtype=jnp.float32), (10, 3))
+    grad = jax.grad(loss_func)(x)
 
     def loss_func_pair(points):
         neighbors, _ = query_neighbors_pairwise(points, points, k=5)
         distances = jnp.linalg.norm(points[:, None] - points[neighbors][:, 1:], axis=-1)
         return jnp.sum(distances**2)
 
-    grad_pair = jax.grad(loss_func_pair)(jnp.arange(30).reshape(10, 3).astype(jnp.float32))
+    grad_pair = jax.grad(loss_func_pair)(x)
 
     assert jnp.allclose(grad, grad_pair, atol=1e-5)
