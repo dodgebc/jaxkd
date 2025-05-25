@@ -1,9 +1,11 @@
 from typing import Any, Tuple
+
 import jax
 import jax.numpy as jnp
 import jax.random as jr
 from jax import lax
 from jax.tree_util import Partial
+
 from .tree import build_tree, query_neighbors
 
 __all__ = [
@@ -60,6 +62,7 @@ def count_neighbors_pairwise(
     Returns:
         counts: (1,) (Q,) (R,) or (Q, R) Number of neighbors within the given radius(i) of query point(s).
     """
+    r = jnp.asarray(r)
     query_shaped = jnp.atleast_2d(query)
     r_shaped = jnp.atleast_2d(r)
     r_shaped = jnp.broadcast_to(r_shaped, (query_shaped.shape[0], r_shaped.shape[-1]))
@@ -79,7 +82,7 @@ def count_neighbors_pairwise(
 @Partial(jax.jit, static_argnames=("k", "steps", "pairwise"))
 def k_means(
     key: KeyArray, points: jax.Array, *, k: int, steps: int, pairwise: bool = True
-) -> jax.Array:
+) -> tuple[jax.Array, jax.Array]:
     """
     Cluster with k-means, using k-means++ initialization.
 
@@ -122,10 +125,11 @@ def k_means_optimize(
     def step(carry, _):
         means, _ = carry
         if pairwise:
-            labels = query_neighbors_pairwise(means, points, k=1)[0].squeeze(-1)
+            labels, _ = query_neighbors_pairwise(means, points, k=1)
         else:
             tree = build_tree(means)
-            labels = query_neighbors(tree, points, k=1)[0].squeeze(-1)
+            labels, _ = query_neighbors(tree, points, k=1)
+        labels = jnp.squeeze(labels)
         total = jax.ops.segment_sum(points, labels, k)
         count = jax.ops.segment_sum(jnp.ones_like(points), labels, k)
         means = total / count
@@ -166,10 +170,11 @@ def k_means_plus_plus_init(
         key, i = key_i
         masked_means = jnp.where(indices[:, jnp.newaxis] >= 0, points[indices], jnp.inf)
         if pairwise:
-            distances = query_neighbors_pairwise(masked_means, points, k=1)[1].squeeze(-1)
+            distances = query_neighbors_pairwise(masked_means, points, k=1)[1]
         else:
             tree = build_tree(masked_means)
-            distances = query_neighbors(tree, points, k=1)[1].squeeze(-1)
+            distances = query_neighbors(tree, points, k=1)[1]
+        distances = jnp.squeeze(distances)
         square_distances = jnp.square(distances)
         probability = square_distances / jnp.sum(square_distances)
         next_mean = jr.choice(key, a=n_points, p=probability)

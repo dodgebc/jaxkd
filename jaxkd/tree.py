@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: MIT
 # Authors: Benjamin Dodge
+from collections import namedtuple
+from typing import Any, Callable, Tuple
+
 import jax
 import jax.numpy as jnp
 from jax import lax
 from jax.tree_util import Partial
-from collections import namedtuple
-from typing import Callable, Tuple, Any
 
 __all__ = [
     "build_tree",
@@ -99,6 +100,7 @@ def count_neighbors(tree: tree_type, query: jax.Array, *, r: float | jax.Array) 
     Returns:
         counts: (1,) (Q,) (R,) or (Q, R) Number of neighbors within the given radius(i) of query point(s).
     """
+    r = jnp.asarray(r)
     points, indices, split_dims = tree.points, tree.indices, tree.split_dims
     if len(points) != len(indices):
         raise ValueError(f"Invalid tree, {len(points)} points and {len(indices)} indices.")
@@ -151,7 +153,9 @@ def _single_query_neighbors(
 
     neighbors = -1 * jnp.ones(k, dtype=int)
     square_distances = jnp.inf * jnp.ones(k)
-    neighbors, _ = _traverse_tree(tree, query, update_func, (neighbors, square_distances), jnp.inf)
+    neighbors, _ = _traverse_tree(
+        tree, query, update_func, (neighbors, square_distances), jnp.asarray(jnp.inf)
+    )
     # recompute distances to enable VJP
     distances = jnp.linalg.norm(points[neighbors] - query, axis=-1)
     # sort primarily by distance, and secondarily by index for well-defined order
@@ -163,6 +167,7 @@ def _single_count_neighbors(
     tree: tree_type, query: jax.Array, *, r: float | jax.Array
 ) -> jax.Array:
     """Single neighbor count implementation, use `count_neighbors` wrapper instead unless non-JIT version is needed."""
+    r = jnp.asarray(r)
     points, indices = tree.points, tree.indices
 
     def update_func(node, count, square_radius):
@@ -189,11 +194,12 @@ def _build_tree(points: jax.Array, optimize: bool = True) -> tree_type:
     def step(carry, level):
         nodes, indices, split_dims = carry
 
-        # Sort the points in each node group along the splitting dimension, either optimized or cycling
+        # Sort the points in each node group along the splitting dimension, either optimized or
+        # cycling.
         if optimize:
             dim_max = jax.ops.segment_max(points[indices], nodes, num_segments=n_points)
             dim_min = jax.ops.segment_min(points[indices], nodes, num_segments=n_points)
-            split_dim = jnp.argmax(dim_max - dim_min, axis=-1)[nodes].astype(jnp.int8)
+            split_dim = jnp.asarray(jnp.argmax(dim_max - dim_min, axis=-1)[nodes], dtype=jnp.int8)
             points_along_dim = jnp.take_along_axis(
                 points[indices], split_dim[:, jnp.newaxis], axis=-1
             ).squeeze(axis=-1)
@@ -202,7 +208,7 @@ def _build_tree(points: jax.Array, optimize: bool = True) -> tree_type:
                 (nodes, points_along_dim, indices, split_dim, split_dims), dimension=0, num_keys=2
             )
         else:
-            split_dim = (level % points.shape[-1]).astype(jnp.int8)
+            split_dim = jnp.asarray(level % points.shape[-1], dtype=jnp.int8)
             points_along_dim = points[indices][:, split_dim]
             nodes, _, indices = lax.sort(
                 (nodes, points_along_dim, indices), dimension=0, num_keys=2
@@ -265,7 +271,7 @@ def _traverse_tree(
     query: jax.Array,
     update_func: Callable[[int, Any, float], Tuple[Any, float]],
     initial_state: Any,
-    initial_square_radius: float,
+    initial_square_radius: jax.Array,
 ):
     """
     Base k-d tree traversal logic https://arxiv.org/abs/2210.12859.
@@ -285,10 +291,10 @@ def _traverse_tree(
         )
 
         # Locate children and determine if far child is in range
-        level = jnp.log2(current + 1).astype(int)
+        level = jnp.asarray(jnp.log2(current + 1), dtype=int)
         split_dim = (level % points.shape[-1]) if split_dims is None else split_dims[current]
         split_distance = query[split_dim] - points[indices[current], split_dim]
-        near_side = (split_distance > 0).astype(int)
+        near_side = jnp.asarray(split_distance > 0, dtype=int)
         near_child = 2 * current + 1 + near_side
         far_child = 2 * current + 2 - near_side
         far_in_range = split_distance**2 <= square_radius
