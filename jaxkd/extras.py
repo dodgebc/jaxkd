@@ -1,9 +1,11 @@
-from typing import Any, Tuple
+from typing import Any
+
 import jax
 import jax.numpy as jnp
 import jax.random as jr
 from jax import lax
 from jax.tree_util import Partial
+
 from .tree import build_tree, query_neighbors
 
 __all__ = [
@@ -20,7 +22,7 @@ KeyArray = Any
 @Partial(jax.jit, static_argnames=("k",))
 def query_neighbors_pairwise(
     points: jax.Array, query: jax.Array, *, k: int
-) -> Tuple[jax.Array, jax.Array]:
+) -> tuple[jax.Array, jax.Array]:
     """
     Find the k nearest neighbors by forming a pairwise distance matrix.
     This will not scale for large problems, but may be faster for small problems.
@@ -40,7 +42,7 @@ def query_neighbors_pairwise(
     distances, indices = lax.top_k(-1 * pairwise_distances, k)
 
     if query.ndim == 1:
-        return indices.squeeze(0), -1 * distances.squeeze(0)
+        return jnp.squeeze(indices, axis=0), -1 * jnp.squeeze(distances, axis=0)
     return indices, -1 * distances
 
 
@@ -60,6 +62,7 @@ def count_neighbors_pairwise(
     Returns:
         counts: (1,) (Q,) (R,) or (Q, R) Number of neighbors within the given radius(i) of query point(s).
     """
+    r = jnp.asarray(r)
     query_shaped = jnp.atleast_2d(query)
     r_shaped = jnp.atleast_2d(r)
     r_shaped = jnp.broadcast_to(r_shaped, (query_shaped.shape[0], r_shaped.shape[-1]))
@@ -68,18 +71,18 @@ def count_neighbors_pairwise(
     # (Q, N) < (Q, R) -> (Q, N, R) -> (Q, R)
 
     if query.ndim == 1 and r.ndim == 0:
-        return counts.squeeze((0, 1))
+        return jnp.squeeze(counts, axis=(0, 1))
     if query.ndim == 1 and r.ndim == 1:
-        return counts.squeeze(0)
+        return jnp.squeeze(counts, axis=0)
     if query.ndim == 2 and r.ndim == 0:
-        return counts.squeeze(1)
+        return jnp.squeeze(counts, axis=1)
     return counts
 
 
 @Partial(jax.jit, static_argnames=("k", "steps", "pairwise"))
 def k_means(
     key: KeyArray, points: jax.Array, *, k: int, steps: int, pairwise: bool = True
-) -> jax.Array:
+) -> tuple[jax.Array, jax.Array]:
     """
     Cluster with k-means, using k-means++ initialization.
 
@@ -122,10 +125,11 @@ def k_means_optimize(
     def step(carry, _):
         means, _ = carry
         if pairwise:
-            labels = query_neighbors_pairwise(means, points, k=1)[0].squeeze(-1)
+            labels, _ = query_neighbors_pairwise(means, points, k=1)
         else:
             tree = build_tree(means)
-            labels = query_neighbors(tree, points, k=1)[0].squeeze(-1)
+            labels, _ = query_neighbors(tree, points, k=1)
+        labels = jnp.squeeze(labels, axis=-1)
         total = jax.ops.segment_sum(points, labels, k)
         count = jax.ops.segment_sum(jnp.ones_like(points), labels, k)
         means = total / count
@@ -166,15 +170,16 @@ def k_means_plus_plus_init(
         key, i = key_i
         masked_means = jnp.where(indices[:, jnp.newaxis] >= 0, points[indices], jnp.inf)
         if pairwise:
-            distances = query_neighbors_pairwise(masked_means, points, k=1)[1].squeeze(-1)
+            _, distances = query_neighbors_pairwise(masked_means, points, k=1)
         else:
             tree = build_tree(masked_means)
-            distances = query_neighbors(tree, points, k=1)[1].squeeze(-1)
+            _, distances = query_neighbors(tree, points, k=1)
+        distances = jnp.squeeze(distances, axis=-1)
         square_distances = jnp.square(distances)
         probability = square_distances / jnp.sum(square_distances)
         next_mean = jr.choice(key, a=n_points, p=probability)
         indices = lax.dynamic_update_slice(indices, next_mean[jnp.newaxis], (i,))
         return indices, None
 
-    indices = lax.scan(step, indices, (keys[1:], jnp.arange(1, k)))[0]
+    indices, _ = lax.scan(step, indices, (keys[1:], jnp.arange(1, k)))
     return points[indices]

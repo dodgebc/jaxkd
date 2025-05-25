@@ -1,7 +1,9 @@
-import jax
-import jaxkd as jk
-import time
 import argparse
+import time
+
+import jax
+
+import jaxkd as jk
 
 key = jax.random.key(83)
 
@@ -38,7 +40,7 @@ for i in range(args.trials):
     else:
         print(tree)
         neighbors, distances = jax.lax.map(
-            lambda q: jk.tree._single_query_neighbors(tree, q, args.neighbors),  # noqa: F821
+            lambda q: jk.tree._single_query_neighbors(tree, q, k=args.neighbors),  # noqa: F821
             queries,
             batch_size=len(points) // args.batches,
         )

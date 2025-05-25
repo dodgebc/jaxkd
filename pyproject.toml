@@ -12,9 +12,11 @@ requires-python = ">= 3.10"
 
 [project.optional-dependencies]
 dev = [
+    "pyright>=1.1.401",
     "pytest>=8.3.4",
     "ruff>=0.9.5",
 ]
+
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
