@@ -7,6 +7,7 @@ import jax
 import jax.numpy as jnp
 from jax import lax
 from jax.tree_util import Partial
+from jax import Array
 
 __all__ = [
     "build_tree",
@@ -19,11 +20,11 @@ __all__ = [
 # and `_single_count_neighbors` instead. Both neighbor functions are implemented using a call
 # to `_traverse_tree` with a custom `update_func` that tracks state.
 
-tree_type = namedtuple("tree", ["points", "indices", "split_dims"])
+tree_type = namedtuple("Tree", ["points", "indices", "split_dims"])
 
 
 @Partial(jax.jit, static_argnames=("optimize",))
-def build_tree(points: jax.Array, optimize: bool = True) -> tree_type:
+def build_tree(points: Array, optimize: bool = True) -> tree_type:
     """
     Build a k-d tree from points.
 
@@ -50,7 +51,7 @@ def build_tree(points: jax.Array, optimize: bool = True) -> tree_type:
 
 
 @Partial(jax.jit, static_argnames=("k",))
-def query_neighbors(tree: tree_type, query: jax.Array, *, k: int) -> tuple[jax.Array, jax.Array]:
+def query_neighbors(tree: tree_type, query: Array, *, k: int) -> tuple[Array, Array]:
     """
     Find the k nearest neighbors in a k-d tree.
 
@@ -80,7 +81,7 @@ def query_neighbors(tree: tree_type, query: jax.Array, *, k: int) -> tuple[jax.A
 
 
 @Partial(jax.jit)
-def count_neighbors(tree: tree_type, query: jax.Array, *, r: float | jax.Array) -> jax.Array:
+def count_neighbors(tree: tree_type, query: Array, *, r: float | Array) -> Array:
     """
     Count the neighbors inside a given radius in a k-d tree.
 
@@ -96,7 +97,7 @@ def count_neighbors(tree: tree_type, query: jax.Array, *, r: float | jax.Array) 
         r: (float) (R,) or (Q, R) Radius or radii to count neighbors within, multiple radii are done in a single tree traversal.
 
     Returns:
-        counts: (1,) (Q,) (R,) or (Q, R) Number of neighbors within the given radius(i) of query point(s).
+        counts: (int) (Q,) (R,) or (Q, R) Number of neighbors within the given radius(i) of query point(s).
     """
     _check_tree(tree)
     r = jnp.asarray(r)
@@ -113,12 +114,10 @@ def count_neighbors(tree: tree_type, query: jax.Array, *, r: float | jax.Array) 
     r_shaped = jnp.broadcast_to(r_shaped, (query_shaped.shape[0], r_shaped.shape[-1]))
     counts = jax.vmap(lambda q, r: _single_count_neighbors(tree, q, r=r))(query_shaped, r_shaped)
 
-    if query.ndim == 1 and r.ndim == 0:
-        return jnp.squeeze(counts, axis=(0, 1))
-    if query.ndim == 1 and r.ndim == 1:
-        return jnp.squeeze(counts, axis=0)
-    if query.ndim == 2 and r.ndim == 0:
-        return jnp.squeeze(counts, axis=1)
+    if r.ndim == 0:
+        counts = jnp.squeeze(counts, axis=1)
+    if query.ndim == 1:
+        counts = jnp.squeeze(counts, axis=0)
     return counts
 
 
@@ -133,15 +132,11 @@ def _check_tree(tree: tree_type) -> None:
         raise ValueError(f"len(points)={len(points)} exceeds maximum value of int32, try int64")
 
 
-def _single_query_neighbors(
-    tree: tree_type, query: jax.Array, *, k: int
-) -> tuple[jax.Array, jax.Array]:
+def _single_query_neighbors(tree: tree_type, query: Array, *, k: int) -> tuple[Array, Array]:
     """Single neighbor query implementation, use `query_neighbors` wrapper instead unless non-JIT version is needed."""
     points, indices = tree.points, tree.indices
 
-    def update_func(
-        node: int, state: tuple[jax.Array, jax.Array], _: jax.Array
-    ) -> tuple[tuple[jax.Array, jax.Array], jax.Array]:
+    def update_func(node, state, _):
         neighbors, square_distances = state
         # square distance to node point
         square_distance = jnp.sum(jnp.square(query - points[indices[node]]), axis=-1)
@@ -170,16 +165,12 @@ def _single_query_neighbors(
     return neighbors, distances
 
 
-def _single_count_neighbors(
-    tree: tree_type, query: jax.Array, *, r: float | jax.Array
-) -> jax.Array:
+def _single_count_neighbors(tree: tree_type, query: Array, *, r: float | Array) -> Array:
     """Single neighbor count implementation, use `count_neighbors` wrapper instead unless non-JIT version is needed."""
     r = jnp.asarray(r)
     points, indices = tree.points, tree.indices
 
-    def update_func(
-        node: int, count: jax.Array, square_radius: jax.Array
-    ) -> tuple[jax.Array, jax.Array]:
+    def update_func(node, count, square_radius):
         # square distance to node point
         square_distance = jnp.sum(jnp.square(query - points[indices[node]]), axis=-1)
         # if the node is within radius, increment count
@@ -191,7 +182,7 @@ def _single_count_neighbors(
     return count
 
 
-def _build_tree(points: jax.Array, optimize: bool = True) -> tree_type:
+def _build_tree(points: Array, optimize: bool = True) -> tree_type:
     """
     Base k-d tree construction logic https://arxiv.org/abs/2211.00120.
 
@@ -277,10 +268,10 @@ def _build_tree(points: jax.Array, optimize: bool = True) -> tree_type:
 
 def _traverse_tree(
     tree: tree_type,
-    query: jax.Array,
-    update_func: Callable[[int, Any, jax.Array], tuple[Any, jax.Array]],
+    query: Array,
+    update_func: Callable[[Array, Any, Array], tuple[Any, Array]],
     initial_state: Any,
-    initial_square_radius: jax.Array,
+    initial_square_radius: Array,
 ):
     """
     Base k-d tree traversal logic https://arxiv.org/abs/2210.12859.
@@ -321,8 +312,8 @@ def _traverse_tree(
         return next, current, state, square_radius
 
     # Loop until we return to root
-    current = 0
-    previous = -1
+    current = jnp.asarray(0, dtype=int)
+    previous = jnp.asarray(-1, dtype=int)
     _, _, state, _ = lax.while_loop(
         lambda carry: carry[0] >= 0, step, (current, previous, initial_state, initial_square_radius)
     )

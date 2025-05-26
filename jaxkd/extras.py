@@ -36,6 +36,8 @@ def query_neighbors_pairwise(
         neighbors: (k,) or (Q, k) Indices of the k nearest neighbors of query point(s).
         distances: (k,) or (Q, k) Distances to the k nearest neighbors of query point(s).
     """
+    if len(points) > 2**32 - 1:
+        raise ValueError("Pairwise neighbors does not support more than 2**32 - 1 points.")
     query_shaped = jnp.atleast_2d(query)
 
     pairwise_distances = jnp.linalg.norm(points - query_shaped[:, None], axis=-1)
@@ -61,7 +63,7 @@ def count_neighbors_pairwise(
         r: (float) (R,) or (Q, R) Radius or radii to count neighbors within, multiple radii are done in a single tree traversal.
 
     Returns:
-        counts: (1,) (Q,) (R,) or (Q, R) Number of neighbors within the given radius(i) of query point(s).
+        counts: (int) (Q,) (R,) or (Q, R) Number of neighbors within the given radius(i) of query point(s).
     """
     r = jnp.asarray(r)
     query_shaped = jnp.atleast_2d(query)
@@ -71,12 +73,10 @@ def count_neighbors_pairwise(
     counts = jnp.sum(pairwise_distances[:, :, None] <= r_shaped[:, None], axis=1)
     # (Q, N) < (Q, R) -> (Q, N, R) -> (Q, R)
 
-    if query.ndim == 1 and r.ndim == 0:
-        return jnp.squeeze(counts, axis=(0, 1))
-    if query.ndim == 1 and r.ndim == 1:
-        return jnp.squeeze(counts, axis=0)
-    if query.ndim == 2 and r.ndim == 0:
-        return jnp.squeeze(counts, axis=1)
+    if r.ndim == 0:
+        counts = jnp.squeeze(counts, axis=1)
+    if query.ndim == 1:
+        counts = jnp.squeeze(counts, axis=0)
     return counts
 
 

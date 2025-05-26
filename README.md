@@ -36,7 +36,7 @@ python -m pip install jaxkd
 Or just grab `tree.py`.
 
 ## Notes
-- The `demo.ipynb` notebook in the source repository has some additional examples, including gradient-based optimization.
+- The `demo.ipynb` notebook in the source repository has some additional examples.
 - The `query_neighbors` function is intended for small values of *k* and does not use a max heap for simplicity.
 - Some common *k*-d tree operations such as ball search are not implemented because they do not return a fixed size array. But there are probably others which could be implemented if there is a need. Suggestions welcome!
 - Only the Euclidean distance is currently supported, this relatively easy to change if needed.
