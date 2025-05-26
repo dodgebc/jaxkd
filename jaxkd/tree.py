@@ -44,6 +44,8 @@ def build_tree(points: jax.Array, optimize: bool = True) -> tree_type:
         raise ValueError(f"Points must have shape (N, d). Got shape {points.shape}.")
     if points.shape[-1] >= 128:
         raise ValueError(f"Maximum dimension 127, got {points.shape[-1]} dimensions.")
+    if jax.config.jax_enable_x64 is False and len(points) > 2**32 - 1:  # type: ignore
+        raise ValueError(f"len(points)={len(points)} exceeds maximum value of int32, try int64")
     return _build_tree(points, optimize=optimize)
 
 
@@ -67,13 +69,9 @@ def query_neighbors(tree: tree_type, query: jax.Array, *, k: int) -> tuple[jax.A
         neighbors: (k,) or (Q, k) Indices of the k nearest neighbors of query point(s).
         distances: (k,) or (Q, k) Distances to the k nearest neighbors of query point(s).
     """
-    points, indices, split_dims = tree.points, tree.indices, tree.split_dims
-    if k > len(points):
+    _check_tree(tree)
+    if k > len(tree.points):
         raise ValueError(f"Queried {k} neighbors but tree contains only {len(tree.points)} points.")
-    if len(points) != len(indices):
-        raise ValueError(f"Invalid tree, {len(points)} points and {len(indices)} indices.")
-    if split_dims is not None and len(split_dims) != len(points):
-        raise ValueError(f"Invalid tree, {len(points)} points and {len(split_dims)} split dims.")
     if query.ndim == 1:
         return _single_query_neighbors(tree, query, k=k)
     if query.ndim == 2:
@@ -84,7 +82,7 @@ def query_neighbors(tree: tree_type, query: jax.Array, *, k: int) -> tuple[jax.A
 @Partial(jax.jit)
 def count_neighbors(tree: tree_type, query: jax.Array, *, r: float | jax.Array) -> jax.Array:
     """
-    Count the neighbors within a given radius in a k-d tree.
+    Count the neighbors inside a given radius in a k-d tree.
 
     Traversal algorithm from Wald (2022), https://arxiv.org/abs/2210.12859.
     See also https://github.com/ingowald/cudaKDTree.
@@ -100,12 +98,8 @@ def count_neighbors(tree: tree_type, query: jax.Array, *, r: float | jax.Array) 
     Returns:
         counts: (1,) (Q,) (R,) or (Q, R) Number of neighbors within the given radius(i) of query point(s).
     """
+    _check_tree(tree)
     r = jnp.asarray(r)
-    points, indices, split_dims = tree.points, tree.indices, tree.split_dims
-    if len(points) != len(indices):
-        raise ValueError(f"Invalid tree, {len(points)} points and {len(indices)} indices.")
-    if split_dims is not None and len(split_dims) != len(points):
-        raise ValueError(f"Invalid tree, {len(points)} points and {len(split_dims)} split dims.")
     if (
         r.ndim > 2
         or query.ndim > 2
@@ -128,6 +122,17 @@ def count_neighbors(tree: tree_type, query: jax.Array, *, r: float | jax.Array) 
     return counts
 
 
+def _check_tree(tree: tree_type) -> None:
+    """Check if the tree is valid."""
+    points, indices, split_dims = tree.points, tree.indices, tree.split_dims
+    if len(points) != len(indices):
+        raise ValueError(f"Invalid tree, {len(points)} points and {len(indices)} indices.")
+    if split_dims is not None and len(split_dims) != len(points):
+        raise ValueError(f"Invalid tree, {len(points)} points and {len(split_dims)} split dims.")
+    if jax.config.jax_enable_x64 is False and len(points) > 2**32 - 1:  # type: ignore
+        raise ValueError(f"len(points)={len(points)} exceeds maximum value of int32, try int64")
+
+
 def _single_query_neighbors(
     tree: tree_type, query: jax.Array, *, k: int
 ) -> tuple[jax.Array, jax.Array]:
@@ -139,7 +144,7 @@ def _single_query_neighbors(
     ) -> tuple[tuple[jax.Array, jax.Array], jax.Array]:
         neighbors, square_distances = state
         # square distance to node point
-        square_distance = jnp.sum((points[indices[node]] - query) ** 2, axis=-1)
+        square_distance = jnp.sum(jnp.square(query - points[indices[node]]), axis=-1)
         max_neighbor = jnp.argmax(square_distances)
         neighbors, square_distances = lax.cond(
             # if the node is closer than the farthest neighbor, replace
@@ -176,13 +181,13 @@ def _single_count_neighbors(
         node: int, count: jax.Array, square_radius: jax.Array
     ) -> tuple[jax.Array, jax.Array]:
         # square distance to node point
-        square_distance = jnp.sum((points[indices[node]] - query) ** 2, axis=-1)
+        square_distance = jnp.sum(jnp.square(query - points[indices[node]]), axis=-1)
         # if the node is within radius, increment count
-        count = lax.select(square_distance < r**2, count + 1, count)
+        count = lax.select(square_distance < jnp.square(r), count + 1, count)
         return count, square_radius
 
     count = jnp.zeros(len(r), dtype=int)
-    count = _traverse_tree(tree, query, update_func, count, jnp.max(r**2))
+    count = _traverse_tree(tree, query, update_func, count, jnp.max(jnp.square(r)))
     return count
 
 
@@ -212,7 +217,7 @@ def _build_tree(points: jax.Array, optimize: bool = True) -> tree_type:
                 (nodes, points_along_dim, indices, split_dim, split_dims), dimension=0, num_keys=2
             )
         else:
-            split_dim = jnp.asarray(level % points.shape[-1], dtype=jnp.int8)
+            split_dim = jnp.asarray(jnp.mod(level, points.shape[-1]), dtype=jnp.int8)
             points_along_dim = points[indices][:, split_dim]
             nodes, _, indices = lax.sort(
                 (nodes, points_along_dim, indices), dimension=0, num_keys=2
@@ -295,13 +300,13 @@ def _traverse_tree(
         )
 
         # Locate children and determine if far child is in range
-        level = jnp.asarray(jnp.log2(current + 1), dtype=int)
-        split_dim = (level % points.shape[-1]) if split_dims is None else split_dims[current]
+        level = jnp.frexp(current + 1)[1] - 1  # robust way top compute floor(log2(current + 1))
+        split_dim = jnp.mod(level, points.shape[-1]) if split_dims is None else split_dims[current]
         split_distance = query[split_dim] - points[indices[current], split_dim]
         near_side = jnp.asarray(split_distance > 0, dtype=int)
         near_child = 2 * current + 1 + near_side
         far_child = 2 * current + 2 - near_side
-        far_in_range = split_distance**2 <= square_radius
+        far_in_range = jnp.square(split_distance) <= square_radius
 
         # Determine next node to traverse
         parent = (current - 1) // 2

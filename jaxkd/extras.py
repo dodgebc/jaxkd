@@ -40,7 +40,7 @@ def query_neighbors_pairwise(
 
     pairwise_distances = jnp.linalg.norm(points - query_shaped[:, None], axis=-1)
     distances, indices = lax.top_k(-1 * pairwise_distances, k)
-    indices = jnp.asarray(indices, dtype=int)
+    indices = jnp.asarray(indices, dtype=int)  # top_k returns int32 even in x64 mode
 
     if query.ndim == 1:
         return jnp.squeeze(indices, axis=0), -1 * jnp.squeeze(distances, axis=0)
@@ -52,7 +52,7 @@ def count_neighbors_pairwise(
     points: jax.Array, query: jax.Array, *, r: float | jax.Array
 ) -> jax.Array:
     """
-    Count the neighbors within a given radius in by forming a pairwise distance matrix.
+    Count the neighbors inside a given radius by forming a pairwise distance matrix.
     This will not scale for large problems, but may be faster for small problems.
 
     Args:

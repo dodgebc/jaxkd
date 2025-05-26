@@ -1,5 +1,7 @@
 import jax
 import jax.numpy as jnp
+import jax.random as jr
+from jax.experimental import enable_x64
 
 import jaxkd as jk
 from jaxkd.extras import count_neighbors_pairwise, query_neighbors_pairwise
@@ -74,9 +76,9 @@ def test_small_case():
 
 
 def test_random():
-    kp, kq = jax.random.split(jax.random.key(83))
-    points = jax.random.normal(kp, shape=(1_000, 3))
-    queries = jax.random.normal(kq, shape=(1_000, 3))
+    kp, kq = jr.split(jr.key(83))
+    points = jr.normal(kp, shape=(1_000, 3))
+    queries = jr.normal(kq, shape=(1_000, 3))
 
     tree = jk.build_tree(points)
     neighbors, distances = jk.query_neighbors(tree, queries, k=100)
@@ -95,9 +97,9 @@ def test_random():
 
 
 def test_random_all():
-    kp, kq = jax.random.split(jax.random.key(83))
-    points = jax.random.normal(kp, shape=(1_000, 3))
-    queries = jax.random.normal(kq, shape=(1_000, 3))
+    kp, kq = jr.split(jr.key(83))
+    points = jr.normal(kp, shape=(1_000, 3))
+    queries = jr.normal(kq, shape=(1_000, 3))
 
     tree = jk.build_tree(points)
     neighbors, distances = jk.query_neighbors(tree, queries, k=1_000)
@@ -113,6 +115,22 @@ def test_random_all():
     assert jnp.all(neighbors == neighbors_no) & jnp.all(neighbors == neighbors_pair)
     assert jnp.all(distances == distances_no) & jnp.all(distances == distances_pair)
     assert jnp.all(counts == counts_no) & jnp.all(counts == counts_pair)
+
+
+def test_random_batched():
+    kp, kq = jr.split(jr.key(83))
+    points = jr.normal(kp, shape=(1_000, 3))
+    queries = jr.normal(kq, shape=(1_000, 3))
+
+    tree = jk.build_tree(points)
+    counts = jk.count_neighbors(tree, queries, r=jnp.array([0.3, 0.4, 0.5]))
+
+    tree_no = jk.build_tree(points, optimize=False)
+    counts_no = jk.count_neighbors(tree_no, queries, r=jnp.array([0.3, 0.4, 0.5]))
+
+    counts_pair = count_neighbors_pairwise(points, queries, r=jnp.array([0.3, 0.4, 0.5]))
+    assert jnp.all(counts == counts_pair)
+    assert jnp.all(counts == counts_no)
 
 
 def test_grad():
@@ -133,3 +151,30 @@ def test_grad():
     grad_pair = jax.grad(loss_func_pair)(x)
 
     assert jnp.allclose(grad, grad_pair, atol=1e-5)
+
+
+def test_random_64():
+    # NOTE: 64 bit results will not match 32 bit results due to precission differences in calculated squared distances
+
+    with enable_x64():  # type: ignore
+        kp, kq = jr.split(jr.key(83))
+        points = jr.normal(kp, shape=(1_000, 3))
+        queries = jr.normal(kq, shape=(1_000, 3))
+
+        tree = jk.build_tree(points)
+        neighbors, distances = jk.query_neighbors(tree, queries, k=100)
+        counts = jk.count_neighbors(tree, queries, r=0.3)
+
+        tree_no = jk.build_tree(points, optimize=False)
+        neighbors_no, distances_no = jk.query_neighbors(tree_no, queries, k=100)
+        counts_no = jk.count_neighbors(tree_no, queries, r=0.3)
+
+        neighbors_pair, distances_pair = query_neighbors_pairwise(points, queries, k=100)
+        counts_pair = count_neighbors_pairwise(points, queries, r=0.3)
+
+        assert jnp.all(neighbors == neighbors_no)
+        assert jnp.all(distances == distances_no)
+        assert jnp.all(counts == counts_no)
+        assert jnp.all(neighbors == neighbors_pair)
+        assert jnp.all(distances == distances_pair)
+        assert jnp.all(counts == counts_pair)
