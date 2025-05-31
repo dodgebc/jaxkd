@@ -318,3 +318,45 @@ def _traverse_tree(
         lambda carry: carry[0] >= 0, step, (current, previous, initial_state, initial_square_radius)
     )
     return state
+
+
+# Version where we carry the max value and index and only recompute when needed.
+# But I think when vmapped the jnp.max() and jnp.argmax() will be executed for each step anyway.
+# And in practice it doesn't seem to make much of a performance difference.
+
+# def _single_query_neighbors_store_max(tree: tree_type, query: Array, *, k: int) -> tuple[Array, Array]:
+#     """Single neighbor query implementation, use `query_neighbors` wrapper instead unless non-JIT version is needed."""
+#     points, indices = tree.points, tree.indices
+
+#     def update_func(node, state, _):
+#         neighbors, square_distances, max_value, max_neighbor = state
+#         # square distance to node point
+#         square_distance = jnp.sum(jnp.square(query - points[indices[node]]), axis=-1)
+#         neighbors, square_distances = lax.cond(
+#             # if the node is closer than the farthest neighbor, replace
+#             square_distance < max_value,
+#             lambda _: (
+#                 neighbors.at[max_neighbor].set(indices[node]),
+#                 square_distances.at[max_neighbor].set(square_distance),
+#             ),
+#             lambda _: (neighbors, square_distances),
+#             None,
+#         )
+#         max_value, max_neighbor = lax.cond(
+#             square_distance < max_value,
+#             lambda _: (jnp.max(square_distances), jnp.argmax(square_distances)),
+#             lambda _: (max_value, max_neighbor),
+#             None
+#         )
+#         return (neighbors, square_distances, max_value, max_neighbor), jnp.max(square_distances)
+
+#     neighbors = -1 * jnp.ones(k, dtype=int)
+#     square_distances = jnp.inf * jnp.ones(k)
+#     neighbors, _, _, _ = _traverse_tree(
+#         tree, query, update_func, (neighbors, square_distances, jnp.inf, -1), jnp.asarray(jnp.inf)
+#     )
+#     # recompute distances to enable VJP
+#     distances = jnp.linalg.norm(points[neighbors] - query, axis=-1)
+#     # sort primarily by distance, and secondarily by index for well-defined order
+#     distances, neighbors = lax.sort((distances, neighbors), dimension=0, num_keys=2)
+#     return neighbors, distances
