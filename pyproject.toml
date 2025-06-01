@@ -34,9 +34,11 @@ build-backend = "hatchling.build"
 source = "vcs"
 
 [tool.hatch.build]
+include = [
+    "jaxkd/libjaxcukd*.so",
+]
 exclude = [
     "/external",
-    "jaxkd/cukd.py",
 ]
 
 [tool.ruff]
