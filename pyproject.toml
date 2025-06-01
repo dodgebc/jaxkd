@@ -33,6 +33,12 @@ build-backend = "hatchling.build"
 [tool.hatch.version]
 source = "vcs"
 
+[tool.hatch.build]
+exclude = [
+    "/external",
+    "jaxkd/cukd.py",
+]
+
 [tool.ruff]
 line-length = 100
 exclude = ["*.ipynb"]

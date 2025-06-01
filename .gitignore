@@ -1,4 +1,7 @@
 *.pyc
 __pycache__/
+external/build/
 jaxkd.egg-info/
 new.ipynb
+speed_comparison.py
+trial.py

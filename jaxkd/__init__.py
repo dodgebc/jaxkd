@@ -9,3 +9,12 @@ __all__ = [
     "extras",
     "tree",
 ]
+
+
+try:
+    from . import cukd
+
+    cukd
+    __all__.append("cukd")
+except ImportError:
+    pass  # cukd is optional and may not be available
