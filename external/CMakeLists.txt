@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.18...3.27)
 project(jaxcukd LANGUAGES C CXX CUDA)
 
-find_package(Python 3.8 COMPONENTS Interpreter Development.Module REQUIRED)
+find_package(Python 3.10 COMPONENTS Interpreter Development.Module REQUIRED)
 
 # Get location of XLA FFI headers from current python environment
 execute_process(
