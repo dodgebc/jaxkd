@@ -21,7 +21,7 @@ def init() -> None:
     This function should be called before using any cudaKDTree functionality.
     """
     global _initilized
-        if not _initilized:
+    if not _initilized:
         so_path = next((Path(__file__).parent).glob("libjaxcukd*.so"), None)
         if so_path is None:
             raise RuntimeError(
