@@ -20,17 +20,18 @@ def init() -> None:
     Initialize the cudaKDTree library by loading the shared object file.
     This function should be called before using any cudaKDTree functionality.
     """
-    so_path = next((Path(__file__).parent).glob("libjaxcukd*.so"), None)
-    if so_path is None:
-        raise RuntimeError(
-            "'libjaxcukd.so' not found, use of the `cukd` module requires the cudaKDTree bindings to be built from source by the user. See https://github.com/dodgebc/jaxkd for instructions."
-        )
-    libjaxcukd = ctypes.cdll.LoadLibrary(str(so_path))
-    jax.ffi.register_ffi_target(
-        "build_and_query", jax.ffi.pycapsule(libjaxcukd.build_and_query), platform="gpu"
-    )
     global _initilized
-    _initilized = True
+        if not _initilized:
+        so_path = next((Path(__file__).parent).glob("libjaxcukd*.so"), None)
+        if so_path is None:
+            raise RuntimeError(
+                "'libjaxcukd.so' not found, use of the `cukd` module requires the cudaKDTree bindings to be built from source by the user. See https://github.com/dodgebc/jaxkd for instructions."
+            )
+        libjaxcukd = ctypes.cdll.LoadLibrary(str(so_path))
+        jax.ffi.register_ffi_target(
+            "build_and_query", jax.ffi.pycapsule(libjaxcukd.build_and_query), platform="gpu"
+        )
+        _initilized = True
 
 
 @Partial(jax.jit, static_argnames=("k",))

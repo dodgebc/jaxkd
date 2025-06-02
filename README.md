@@ -3,7 +3,7 @@ Find *k*-nearest neighbors using a *k*-d tree in JAX!
 
 This is an implementation of two GPU-friendly tree algorithms [[1](https://arxiv.org/abs/2211.00120), [2](https://arxiv.org/abs/2210.12859)] using only JAX primitives. The core `build_tree`, `query_neighbors`, and `count_neighbors` operations are compatible with JIT and automatic differentiation. They are reasonably fast when vectorized on GPU/TPU, but will be slower than SciPy's `KDTree` on CPU. For small problems where a pairwise distance matrix fits in memory, check whether brute force is faster (see `jaxkd.extras`).
 
-If neighbor search is the performance bottleneck and you only use Nvidia GPUs, consider binding the lower-level [cudaKDTree](https://github.com/ingowald/cudaKDTree) library to JAX. This can be done with `jaxkd.cukd`, though it requires some [setup](##Performance). Be warned that this approach will not spark joy. The advantage of the pure JAX version is that it is portable and easy to use, with the ability to scale up to larger problems without the complexity of integrating non-JAX libraries. Try it out!
+If neighbor search is the performance bottleneck and you only use Nvidia GPUs, consider binding the lower-level [cudaKDTree](https://github.com/ingowald/cudaKDTree) library to JAX. This can be done with `jaxkd.cukd`, though it requires some setup (see below). Be warned that this approach will not spark joy. The advantage of the pure JAX version is that it is portable and easy to use, with the ability to scale up to larger problems without the complexity of integrating non-JAX libraries. Try it out!
 
 <a target="_blank" href="https://colab.research.google.com/github/dodgebc/jaxkd/blob/main/demo.ipynb">
   <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
@@ -40,7 +40,7 @@ Or just grab `tree.py`.
 
 ## Performance
 
-The relevant baseline for `jaxkd` is the original CUDA-based [cudaKDTree](https://github.com/ingowald/cudaKDTree) library, which implements the same algorithms at a lower level and can be bound to `jax` using the "[foreign function interface](https://docs.jax.dev/en/latest/ffi.html)". There will be a significant performance gain at the cost of portability and ease of use. There are also more features available in cudaKDTree if you are willing to your own bindings. Below are some rough numbers for speed on an H100 (`cukd` compiled with fixed *k*=16 hence the identical times). Try it out for yourself at the end of the [demo notebook](https://colab.research.google.com/github/dodgebc/jaxkd/blob/main/demo.ipynb)!
+The relevant baseline for `jaxkd` is the original CUDA-based [cudaKDTree](https://github.com/ingowald/cudaKDTree) library, which implements the same algorithms at a lower level and can be bound to `jax` using the "[foreign function interface](https://docs.jax.dev/en/latest/ffi.html)". There will be a significant performance gain at the cost of portability and ease of use. There are also more features available in cudaKDTree if you are willing to write your own bindings. Below are some rough numbers from an H100 (`cukd` compiled with fixed *k*=16 hence the identical times). Try it out for yourself at the end of the [demo notebook](https://colab.research.google.com/github/dodgebc/jaxkd/blob/main/demo.ipynb)!
 
 | Milliseconds      | Build tree      | Query *k*=1     | Query *k*=4     | Query *k*=16    |
 |-------------------|-----------------|-----------------|-----------------|-----------------|
