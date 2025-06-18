@@ -10,7 +10,7 @@ from jax.tree_util import Partial
 from jax import Array
 
 try:
-    import jaxkd_cuda
+    import jaxkd_cuda  # type: ignore
 
     global_has_cuda = True
 except ImportError:
@@ -331,7 +331,7 @@ def _build_tree(points: Array, optimize: bool = True) -> tree_type:
     (nodes, indices, split_dims), _ = lax.scan(
         step, (nodes, indices, split_dims), jnp.arange(n_levels)
     )
-    if split_dims is not None:
+    if isinstance(split_dims, Array):
         split_dims = split_dims.at[n_points // 2 :].set(-1)  # mark leaves as -1
     return tree_type(points, indices, split_dims)
 
