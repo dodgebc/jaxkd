@@ -9,10 +9,13 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">= 3.10"
 dependencies = [
-    "jax"
+    "jax[cuda12]"
 ]
 
 [project.optional-dependencies]
+cuda = [
+    "jaxkd-cuda"
+]
 dev = [
     "ipywidgets>=8.1.7",
     "jax[cuda12]==0.6.0",
@@ -35,7 +38,7 @@ source = "vcs"
 
 [tool.hatch.build]
 include = [
-    "jaxkd/libjaxcukd*.so",
+    "jaxkd",
 ]
 exclude = [
     "/external",

@@ -42,7 +42,7 @@ def query_neighbors_pairwise(
 
     pairwise_distances = jnp.linalg.norm(points - query_shaped[:, None], axis=-1)
     distances, indices = lax.top_k(-1 * pairwise_distances, k)
-    indices = jnp.asarray(indices, dtype=int)  # top_k returns int32 even in x64 mode
+    indices = jnp.asarray(indices, dtype=int)  # top_k returns int32, even in x64 mode
 
     if query.ndim == 1:
         return jnp.squeeze(indices, axis=0), -1 * jnp.squeeze(distances, axis=0)
