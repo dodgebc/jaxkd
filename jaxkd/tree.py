@@ -11,6 +11,7 @@ from jax import Array
 
 try:
     import jaxkd_cuda
+
     global_has_cuda = True
 except ImportError:
     global_has_cuda = False
@@ -28,8 +29,11 @@ __all__ = [
 
 tree_type = namedtuple("Tree", ["points", "indices", "split_dims"])
 
+
 @Partial(jax.jit, static_argnames=("k", "optimize", "cuda"))
-def build_and_query(points: Array, query: Array, *, k: int, optimize: bool = True, cuda: bool = False) -> tuple[Array, Array]:
+def build_and_query(
+    points: Array, query: Array, *, k: int, optimize: bool = True, cuda: bool = False
+) -> tuple[Array, Array]:
     """
     Build a k-d tree from points find the k nearest neighbors of queries.
     This is a convenience function that combines `build_tree` and `query_neighbors`.
@@ -50,7 +54,7 @@ def build_and_query(points: Array, query: Array, *, k: int, optimize: bool = Tru
     return query_neighbors(tree, query, k=k, cuda=cuda)
 
 
-@Partial(jax.jit, static_argnames=("optimize","cuda"))
+@Partial(jax.jit, static_argnames=("optimize", "cuda"))
 def build_tree(points: Array, optimize: bool = True, cuda: bool = False) -> tree_type:
     """
     Build a k-d tree from points.
@@ -86,11 +90,12 @@ def build_tree(points: Array, optimize: bool = True, cuda: bool = False) -> tree
             raise ValueError("jaxkd-cuda extension requires optimize=True")
         points, indices, split_dims = jaxkd_cuda.build_tree(points)
         return tree_type(points, indices, split_dims)
-    
 
 
-@Partial(jax.jit, static_argnames=("k","cuda"))
-def query_neighbors(tree: tree_type, query: Array, *, k: int, cuda: bool = False) -> tuple[Array, Array]:
+@Partial(jax.jit, static_argnames=("k", "cuda"))
+def query_neighbors(
+    tree: tree_type, query: Array, *, k: int, cuda: bool = False
+) -> tuple[Array, Array]:
     """
     Find the k nearest neighbors in a k-d tree.
 
@@ -113,17 +118,21 @@ def query_neighbors(tree: tree_type, query: Array, *, k: int, cuda: bool = False
     _check_tree(tree)
     if k > len(tree.points):
         raise ValueError(f"Queried {k} neighbors but tree contains only {len(tree.points)} points.")
-    
+
     query_shaped = jnp.atleast_2d(query)
 
     if not cuda:
-        neighbors, distances = jax.vmap(lambda q: _single_query_neighbors(tree, q, k=k))(query_shaped)
+        neighbors, distances = jax.vmap(lambda q: _single_query_neighbors(tree, q, k=k))(
+            query_shaped
+        )
     else:
         if not global_has_cuda:
             raise ImportError("jaxkd-cuda extension is not installed")
         if tree.split_dims is None:
             raise ValueError("jaxkd-cuda extension requires optimize=True, i.e. split_dims=None")
-        neighbors, distances = jaxkd_cuda.query_neighbors((tree.points, tree.indices, tree.split_dims), query_shaped, k=k)
+        neighbors, distances = jaxkd_cuda.query_neighbors(
+            (tree.points, tree.indices, tree.split_dims), query_shaped, k=k
+        )
 
     if query.ndim == 1:
         return jnp.squeeze(neighbors, axis=0), jnp.squeeze(distances, axis=0)
@@ -133,7 +142,9 @@ def query_neighbors(tree: tree_type, query: Array, *, k: int, cuda: bool = False
 
 
 @Partial(jax.jit, static_argnames=("cuda",))
-def count_neighbors(tree: tree_type, query: Array, *, r: float | Array, cuda: bool = False) -> Array:
+def count_neighbors(
+    tree: tree_type, query: Array, *, r: float | Array, cuda: bool = False
+) -> Array:
     """
     Count the neighbors inside a given radius in a k-d tree.
 
@@ -165,15 +176,19 @@ def count_neighbors(tree: tree_type, query: Array, *, r: float | Array, cuda: bo
     query_shaped = jnp.atleast_2d(query)
     r_shaped = jnp.atleast_2d(r)
     r_shaped = jnp.broadcast_to(r_shaped, (query_shaped.shape[0], r_shaped.shape[-1]))
-    
+
     if not cuda:
-        counts = jax.vmap(lambda q, r: _single_count_neighbors(tree, q, r=r))(query_shaped, r_shaped)
+        counts = jax.vmap(lambda q, r: _single_count_neighbors(tree, q, r=r))(
+            query_shaped, r_shaped
+        )
     else:
         if not global_has_cuda:
             raise ImportError("jaxkd-cuda extension is not installed")
         if tree.split_dims is None:
             raise ValueError("jaxkd-cuda extension requires optimize=True, i.e. split_dims=None")
-        counts = jaxkd_cuda.count_neighbors((tree.points, tree.indices, tree.split_dims), query_shaped, r_shaped)
+        counts = jaxkd_cuda.count_neighbors(
+            (tree.points, tree.indices, tree.split_dims), query_shaped, r_shaped
+        )
 
     if r.ndim == 0:
         counts = jnp.squeeze(counts, axis=1)
@@ -317,7 +332,7 @@ def _build_tree(points: Array, optimize: bool = True) -> tree_type:
         step, (nodes, indices, split_dims), jnp.arange(n_levels)
     )
     if split_dims is not None:
-        split_dims = split_dims.at[n_points // 2:].set(-1)  # mark leaves as -1
+        split_dims = split_dims.at[n_points // 2 :].set(-1)  # mark leaves as -1
     return tree_type(points, indices, split_dims)
 
 
