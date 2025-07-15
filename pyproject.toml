@@ -9,11 +9,12 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">= 3.10"
 dependencies = [
-    "jax[cuda12]"
+    "jax"
 ]
 
 [project.optional-dependencies]
 cuda = [
+    "jax[cuda12]",
     "jaxkd-cuda"
 ]
 dev = [
