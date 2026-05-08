@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 import jax.random as jr
-from jax.experimental import enable_x64
+from jax import enable_x64
 
 import jaxkd as jk
 

@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 import jax.random as jr
-from jax.experimental import enable_x64
+from jax import enable_x64
 
 import jaxkd as jk
 from jaxkd.extras import count_neighbors_pairwise, query_neighbors_pairwise
