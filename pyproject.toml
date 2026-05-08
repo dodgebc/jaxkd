@@ -7,7 +7,7 @@ authors = [
 description = "Minimal JAX implementation of k-nearest neighbors using a k-d tree."
 readme = "README.md"
 license = "MIT"
-requires-python = ">= 3.10"
+requires-python = ">= 3.11"
 dependencies = [
     "jax"
 ]
