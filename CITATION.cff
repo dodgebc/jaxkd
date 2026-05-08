@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "jaxkd: k-d trees in pure JAX"
+authors:
+  - family-names: Dodge
+    given-names: Benjamin
+    email: bendodge@stanford.edu
+repository-code: https://github.com/dodgebc/jaxkd
+license: MIT
+year: 2025

@@ -45,3 +45,16 @@ Or with the CUDA extension.
 python -m pip install jaxkd[cuda]
 ```
 Or just grab `tree.py`.
+
+## Citation
+
+If you use `jaxkd` in your research, please cite:
+
+```bibtex
+@software{jaxkd,
+  author = {Dodge, Benjamin},
+  title = {jaxkd: k-d trees in pure JAX},
+  url = {https://github.com/dodgebc/jaxkd},
+  year = {2025}
+}
+```
