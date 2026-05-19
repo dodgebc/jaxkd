@@ -3,9 +3,7 @@ Find *k*-nearest neighbors using a *k*-d tree in JAX!
 
 This is an implementation of two GPU-friendly tree algorithms [[1](https://arxiv.org/abs/2211.00120), [2](https://arxiv.org/abs/2210.12859)] using only JAX primitives. The core `build_tree`, `query_neighbors`, and `count_neighbors` operations are compatible with JIT and automatic differentiation. They are reasonably fast when vectorized on GPU/TPU, but will be slower than SciPy's `KDTree` on CPU. For small problems where a pairwise distance matrix fits in memory, check whether brute force is faster (see `jaxkd.extras`).
 
-If query speed is the performance bottleneck and you only use Nvidia GPUs, the [jaxkd-cuda](https://github.com/dodgebc/jaxkd-cuda) extension can be installed as an optional dependency (see below) to enable more efficient tree operations, particularly traversal. The intention is to match the behavior of the pure-JAX version and integrate seamlessly with the `cuda=True` argument. Building the extension will require CMake and NVCC installed on your system. There may be some rough edges and the internal workings may change.
-
-For even more power, flexibility, and speed, consider binding the original [cudaKDTree](https://github.com/ingowald/cudaKDTree) library to JAX. Functionality will be different as described in the [jaxkd-cuda](https://github.com/dodgebc/jaxkd-cuda) repository, where example bindings can also be found and modified to your needs. Be warned that these will not spark joy. The advantage of the pure-JAX version is that it is portable and easy to use, with the ability to scale up to larger problems without the complexity of integrating non-JAX libraries. Try it out!
+If query speed is your performance bottleneck and you only use Nvidia GPUs, the [jaxkd-cuda](https://github.com/dodgebc/jaxkd-cuda) extension can be installed as an optional dependency (see below). The intention is to match the pure-JAX behavior and integrate seamlessly via the `cuda=True` argument. However, this library is still does not offer the maximum possible performance. Consider binding the original [cudaKDTree](https://github.com/ingowald/cudaKDTree) library to JAX or check out the new [jz-tree](https://github.com/jstuecker/jztree) code which uses a different tree structure. The advantage of the pure-JAX `jaxkd` is that it is portable and easy to use, with the ability to scale up to larger problems without the complexity of integrating non-JAX libraries. Try it out!
 
 <a target="_blank" href="https://colab.research.google.com/github/dodgebc/jaxkd/blob/main/demo.ipynb">
   <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
@@ -40,7 +38,7 @@ To install, use `pip`. The only dependency is `jax`.
 ```
 python -m pip install jaxkd
 ```
-Or with the CUDA extension.
+Or with the CUDA extension.  extension will require CMake and NVCC installed on your system.
 ```
 python -m pip install jaxkd[cuda]
 ```
