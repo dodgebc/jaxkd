@@ -178,3 +178,28 @@ def test_random_64():
         assert jnp.all(neighbors == neighbors_pair)
         assert jnp.all(distances == distances_pair)
         assert jnp.all(counts == counts_pair)
+
+
+def test_random_32_in_64():
+    with enable_x64():  # type: ignore
+        kp, kq = jr.split(jr.key(83))
+        points = jr.normal(kp, shape=(1_000, 3), dtype=jnp.float32)
+        queries = jr.normal(kq, shape=(1_000, 3), dtype=jnp.float32)
+
+        tree = jk.build_tree(points)
+        neighbors, distances = jk.query_neighbors(tree, queries, k=100)
+        counts = jk.count_neighbors(tree, queries, r=0.3)
+
+        tree_no = jk.build_tree(points, optimize=False)
+        neighbors_no, distances_no = jk.query_neighbors(tree_no, queries, k=100)
+
+        neighbors_pair, distances_pair = query_neighbors_pairwise(points, queries, k=100)
+        counts_pair = count_neighbors_pairwise(points, queries, r=0.3)
+
+        assert distances.dtype == jnp.float32
+        assert jnp.all(neighbors == neighbors_no) & jnp.all(neighbors == neighbors_pair)
+        assert jnp.all(distances == distances_no) & jnp.all(distances == distances_pair)
+        assert jnp.all(counts == counts_pair)
+
+        grad = jax.grad(lambda p: jnp.sum(jk.query_neighbors(jk.build_tree(p), p, k=5)[1]))(points)
+        assert grad.dtype == jnp.float32
