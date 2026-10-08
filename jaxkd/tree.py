@@ -232,7 +232,11 @@ def _single_query_neighbors(tree: tree_type, query: Array, *, k: int) -> tuple[A
     neighbors = -1 * jnp.ones(k, dtype=indices.dtype)
     square_distances = jnp.inf * jnp.ones(k, dtype=points.dtype)
     neighbors, _ = _traverse_tree(
-        tree, query, update_func, (neighbors, square_distances), jnp.asarray(jnp.inf)
+        tree,
+        query,
+        update_func,
+        (neighbors, square_distances),
+        jnp.asarray(jnp.inf, dtype=points.dtype),
     )
     # recompute distances to enable VJP
     distances = jnp.linalg.norm(points[neighbors] - query, axis=-1)
