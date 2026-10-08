@@ -9,11 +9,11 @@ from jax.tree_util import Partial
 from .tree import build_tree, query_neighbors
 
 __all__ = [
-    "query_neighbors_pairwise",
     "count_neighbors_pairwise",
     "k_means",
     "k_means_optimize",
     "k_means_plus_plus_init",
+    "query_neighbors_pairwise",
 ]
 
 KeyArray = Any

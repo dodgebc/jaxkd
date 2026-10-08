@@ -1,11 +1,11 @@
 import ctypes
 from pathlib import Path
-import numpy as np
 
 import jax
 import jax.numpy as jnp
-from jax.tree_util import Partial
+import numpy as np
 from jax import Array
+from jax.tree_util import Partial
 
 # WARNING: This module requires the cudaKDTree bindings to be built and available as
 # 'libjaxcukd.so' in the same directory as this file. The code may be brittle and it
@@ -48,7 +48,6 @@ def query_neighbors(points: Array, queries: Array, k: int = 1) -> tuple[Array, A
         neighbors: (Q, k) Indices of the k nearest neighbors for each query point.
         distances: (Q, k) Distances to the k nearest neighbors for each query point.
     """
-    global _initilized
     if not _initilized:
         raise RuntimeError("cukd not initialized, call jaxkd.cukd.init() first.")
     call = jax.ffi.ffi_call(

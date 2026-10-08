@@ -19,7 +19,7 @@ cuda = [
 ]
 dev = [
     "ipywidgets>=8.1.7",
-    "jax[cuda12]==0.6.0",
+    "jax[cuda13]>=0.7.0",
     "jupyterlab>=4.4.3",
     "matplotlib>=3.10.3",
     "pytest>=8.3.5",

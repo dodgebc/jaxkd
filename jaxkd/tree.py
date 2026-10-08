@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: MIT
 # Authors: Benjamin Dodge
 from collections import namedtuple
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import jax
 import jax.numpy as jnp
-from jax import lax
+from jax import Array, lax
 from jax.tree_util import Partial
-from jax import Array
 
 try:
     import jaxkd_cuda  # type: ignore
@@ -18,8 +18,8 @@ except ImportError:
 
 __all__ = [
     "build_tree",
-    "query_neighbors",
     "count_neighbors",
+    "query_neighbors",
 ]
 
 # These functions handle batching, are automatically JIT-compiled, and do a few sanity checks.
