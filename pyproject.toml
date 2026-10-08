@@ -14,7 +14,7 @@ dependencies = [
 
 [project.optional-dependencies]
 cuda = [
-    "jax[cuda12]",
+    "jax[cuda13]",
     "jaxkd-cuda"
 ]
 dev = [
